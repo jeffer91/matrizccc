@@ -36,7 +36,7 @@ vm.runInContext(code, context, { filename: "app.js" });
 const { normalHeader, findType, cleanMatrix, cleanedName, outputBytes, readExcel } = context.testApi;
 
 function equalRows(actual, expected) {
-  assert.deepEqual(JSON.parse(JSON.stringify(actual)), expected);
+  assert.deepEqual(JSON.parse(JSON.stringify(actual)), JSON.parse(JSON.stringify(expected)));
 }
 assert.equal(normalHeader("  descripcionComponente\u00a0\u200b"), "descripcionComponente");
 assert.equal(findType(["codigoComponente","ordenComponente","descripcionComponente\u00a0","descripcionComponente2","descripcionComponente3"]), "base");
