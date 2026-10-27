@@ -1,15 +1,16 @@
 <!doctype html>
 <html lang="es">
 <head>
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#f8fafc">
   <meta name="description" content="Elimina el formato visual de tres archivos Excel académicos sin modificar sus datos. Funciona en tu navegador.">
   <title>Matriz CCC · Limpiador de Excel</title>
-  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./styles.css?v=3">
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-  <script defer src="./app.js"></script>
+  <script defer src="./app.js?v=3"></script>
 </head>
 <body>
   <div class="app">
@@ -23,7 +24,7 @@
       <section class="hero">
         <div>
           <h1>Tus Excel, <span>sin formato.</span></h1>
-          <p>Sube los tres archivos académicos. Conservamos los textos y valores en sus columnas y eliminamos estilos para que descargues copias limpias.</p>
+          <p>Selecciona los 3 archivos Excel y descárgalos sin formato en un solo ZIP. El proceso se hace en tu navegador, sin cambiar tus datos.</p>
         </div>
         <div class="counter"><strong id="readyCount">0 <small>/ 3</small></strong><span>archivos preparados</span></div>
       </section>
@@ -78,7 +79,7 @@
       </section>
 
       <section class="download-panel">
-        <div><h2>Descarga tus archivos limpios</h2><p>Un archivo ZIP con los tres Excel, cada uno por separado. Sin colores, bordes ni formato de celdas.</p></div>
+        <div><h2>Descarga tus archivos limpios</h2><p>Un ZIP con Redes base, PEA unidades y PEA actividades, cada uno en su propio Excel limpio. Descarga con un clic.</p></div>
         <div class="download-actions">
           <button type="button" id="reset" class="btn btn-ghost">Limpiar selección</button>
           <button type="button" id="downloadAll" class="btn btn-primary" disabled>
