@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f8fafc">
+  <meta name="description" content="Elimina el formato visual de tres archivos Excel académicos sin modificar sus datos. Funciona en tu navegador.">
+  <title>Matriz CCC · Limpiador de Excel</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script defer src="./app.js"></script>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <a href="./" class="brand" aria-label="Matriz CCC, inicio"><span class="brand-mark">M</span><span>Matriz <strong>CCC</strong></span></a>
+      <span class="top-tag"><span class="privacy-dot"></span> Procesamiento local</span>
+    </header>
+
+    <main>
+      <div class="eyebrow"><span class="eyebrow-rule"></span> HERRAMIENTA DE EXCEL</div>
+      <section class="hero">
+        <div>
+          <h1>Tus Excel, <span>sin formato.</span></h1>
+          <p>Sube los tres archivos académicos. Conservamos los textos y valores en sus columnas y eliminamos estilos para que descargues copias limpias.</p>
+        </div>
+        <div class="counter"><strong id="readyCount">0 <small>/ 3</small></strong><span>archivos preparados</span></div>
+      </section>
+
+      <section class="upload-panel" aria-label="Carga de documentos">
+        <div class="panel-heading"><div><h2>Subir archivos</h2><p>Puedes escoger los tres a la vez o cargarlos uno por uno. No importa el orden.</p></div><span class="small-note">Excel .xlsx / .xls</span></div>
+        <div id="dropzone" class="dropzone" role="button" tabindex="0" aria-label="Seleccionar tres archivos Excel o arrastrarlos aquí">
+          <div class="upload-icon" aria-hidden="true">
+            <svg width="27" height="27" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V3m0 0L7.5 7.5M12 3l4.5 4.5"/><path d="M4 15v4a2 2 0 002 2h12a2 2 0 002-2v-4"/></svg>
+          </div>
+          <strong>Arrastra aquí tus archivos Excel</strong>
+          <span>o selecciona varios archivos desde tu computadora</span>
+          <button class="btn btn-outline" id="chooseAll" type="button">Seleccionar archivos</button>
+        </div>
+        <input type="file" id="multiInput" accept=".xlsx,.xls" multiple hidden>
+      </section>
+
+      <section class="file-section" aria-label="Archivos necesarios">
+        <div class="section-line"><h2>Archivos requeridos</h2><span id="fileProgress">0 de 3 listos</span></div>
+        <div class="files">
+          <article class="file-card" data-role="base">
+            <div class="file-top"><span class="file-number">01</span><span class="file-state" data-state="base">Pendiente</span></div>
+            <h3>Redes base</h3><p>5 columnas: código, orden y descripciones.</p>
+            <div class="file-details" data-details="base">Ningún archivo cargado.</div>
+            <button type="button" class="mini-link" data-pick="base">Seleccionar o reemplazar <span aria-hidden="true">↗</span></button>
+            <button type="button" class="mini-download" data-download="base" disabled>Descargar Excel limpio</button>
+            <input type="file" data-file="base" accept=".xlsx,.xls" hidden>
+          </article>
+          <article class="file-card" data-role="unidades">
+            <div class="file-top"><span class="file-number">02</span><span class="file-state" data-state="unidades">Pendiente</span></div>
+            <h3>PEA · Unidades</h3><p>3 columnas: código, orden y descripción.</p>
+            <div class="file-details" data-details="unidades">Ningún archivo cargado.</div>
+            <button type="button" class="mini-link" data-pick="unidades">Seleccionar o reemplazar <span aria-hidden="true">↗</span></button>
+            <button type="button" class="mini-download" data-download="unidades" disabled>Descargar Excel limpio</button>
+            <input type="file" data-file="unidades" accept=".xlsx,.xls" hidden>
+          </article>
+          <article class="file-card" data-role="actividades">
+            <div class="file-top"><span class="file-number">03</span><span class="file-state" data-state="actividades">Pendiente</span></div>
+            <h3>PEA · Actividades</h3><p>4 columnas: nivel, mecanismo, tema y descripción.</p>
+            <div class="file-details" data-details="actividades">Ningún archivo cargado.</div>
+            <button type="button" class="mini-link" data-pick="actividades">Seleccionar o reemplazar <span aria-hidden="true">↗</span></button>
+            <button type="button" class="mini-download" data-download="actividades" disabled>Descargar Excel limpio</button>
+            <input type="file" data-file="actividades" accept=".xlsx,.xls" hidden>
+          </article>
+        </div>
+      </section>
+
+      <section id="notice" class="notice" role="status" aria-live="polite" hidden></section>
+      <section id="preview" class="preview" hidden aria-label="Vista previa de datos">
+        <div class="section-line"><h2>Vista previa</h2><span>Primeras 3 filas de contenido</span></div>
+        <div id="previewTables" class="preview-tables"></div>
+      </section>
+
+      <section class="download-panel">
+        <div><h2>Descarga tus archivos limpios</h2><p>Un archivo ZIP con los tres Excel, cada uno por separado. Sin colores, bordes ni formato de celdas.</p></div>
+        <div class="download-actions">
+          <button type="button" id="reset" class="btn btn-ghost">Limpiar selección</button>
+          <button type="button" id="downloadAll" class="btn btn-primary" disabled>
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0l5-5m-5 5l-5-5M4 17v3h16v-3"/></svg>
+            Descargar los 3 Excel
+          </button>
+        </div>
+      </section>
+      <p class="footnote">Los archivos se procesan únicamente en este navegador. Se corrigen espacios invisibles de los encabezados, pero no se reescribe el contenido académico. Quitar formato no resuelve posibles errores de datos en el sistema de destino.</p>
+    </main>
+    <footer><span>Matriz CCC</span><span>Hecho para cargas académicas claras y sencillas.</span></footer>
+  </div>
+</body>
+</html>
