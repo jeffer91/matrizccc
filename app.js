@@ -18,6 +18,7 @@ const TYPES = ["base", "unidades", "actividades"];
 const MAX_FILE_SIZE = 15 * 1024 * 1024;
 const MAX_CELLS = 250000;
 const loaded = Object.create(null);
+let reading = false;
 const $ = selector => document.querySelector(selector);
 
 function normalHeader(value) {
@@ -91,7 +92,11 @@ function inspectWorkbook(book) {
   for (const sheetName of book.SheetNames) {
     const ws = book.Sheets[sheetName];
     if (!ws || !ws["!ref"]) continue;
-    const rawHeader = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, blankrows: false, range: 0 })[0] || [];
+    // Solo la fila 1: no recorrer cientos o miles de filas para identificar la plantilla.
+    const firstRow = { s: { r: 0, c: 0 }, e: { r: 0, c: 9 } };
+    const rawHeader = XLSX.utils.sheet_to_json(ws, {
+      header: 1, raw: true, defval: null, blankrows: true, range: firstRow
+    })[0] || [];
     const type = findType(rawHeader);
     if (type) candidates.push({ ws, sheetName, type });
   }
@@ -104,7 +109,11 @@ async function readExcel(file, intendedType) {
   if (file.size > MAX_FILE_SIZE) throw new Error("«" + file.name + "» supera el límite de 15 MB.");
   let book;
   try {
-    book = XLSX.read(await file.arrayBuffer(), { type: "array", cellText: true, cellNF: true, cellDates: false });
+    // Evitar cargar estilos, textos de presentación y datos de formatos que se desecharán.
+    book = XLSX.read(await file.arrayBuffer(), {
+      type: "array", cellStyles: false, cellNF: false,
+      cellText: false, cellDates: false, cellFormula: true
+    });
   } catch (_) {
     throw new Error("No se pudo abrir «" + file.name + "». Comprueba que sea un archivo Excel válido.");
   }
@@ -130,8 +139,10 @@ async function readExcel(file, intendedType) {
     cleaned.warnings.push("Las celdas combinadas se dejarán sin combinar.");
   }
 
+  // El XLSX limpio queda preparado al cargar; la descarga no vuelve a convertirlo.
+  const bytes = outputBytes({ rows: cleaned.rows });
   return {
-    type, sheetName, name: file.name, rows: cleaned.rows,
+    type, sheetName, name: file.name, rows: cleaned.rows, bytes,
     corrected: cleaned.corrected, warnings: cleaned.warnings,
     dataCount: Math.max(0, cleaned.rows.length - 1), width: cleaned.width
   };
@@ -139,33 +150,57 @@ async function readExcel(file, intendedType) {
 
 async function acceptFiles(fileList, intendedType = null) {
   const files = Array.from(fileList || []);
-  if (!files.length) return;
-  let success = 0;
-  const notes = [];
-  for (const file of files) {
-    try {
-      const item = await readExcel(file, intendedType);
-      loaded[item.type] = item;
-      success++;
-      if (item.corrected.length) {
-        notes.push(item.name + ": se normalizaron los encabezados " + item.corrected.join(", ") + ".");
-      }
-      item.warnings.forEach(warning => notes.push(item.name + ": " + warning));
-    } catch (e) {
-      notes.push("ERROR: " + (e && e.message ? e.message : "No fue posible leer el archivo."));
-    }
-  }
+  if (!files.length || reading) return;
+  reading = true;
+  showNotice("Leyendo " + files.length + (files.length === 1 ? " archivo…" : " archivos…"));
   render();
-  const failed = files.length - success;
-  const lead = success ? (success === 1 ? "1 archivo listo." : success + " archivos listos.") : "";
-  showNotice([lead, ...notes].filter(Boolean).join("\n"), Boolean(failed));
+  try {
+    // Lectura concurrente: no obliga a cargar primero uno, luego otro, luego otro.
+    const results = await Promise.allSettled(files.map(file => readExcel(file, intendedType)));
+    const notes = [];
+    let success = 0;
+    const assigned = new Set();
+    for (let i = 0; i < results.length; i++) {
+      const result = results[i];
+      if (result.status === "fulfilled") {
+        const item = result.value;
+        if (assigned.has(item.type)) {
+          notes.push("ERROR: Se repitió " + SCHEMAS[item.type].title +
+            ". Selecciona solamente un archivo por tipo.");
+          continue;
+        }
+        assigned.add(item.type);
+        loaded[item.type] = item;
+        success++;
+        if (item.corrected.length) {
+          notes.push(item.name + ": encabezados normalizados (" +
+            item.corrected.join(", ") + ").");
+        }
+        item.warnings.forEach(warning => notes.push(item.name + ": " + warning));
+      } else {
+        const error = result.reason;
+        notes.push("ERROR: " + (error && error.message ? error.message : "No se pudo procesar un archivo."));
+      }
+    }
+    const failed = files.length - success;
+    const ready = TYPES.filter(type => loaded[type]).length;
+    const summary = ready === 3
+      ? "¡Los tres Excel están limpios! Pulsa «Descargar los 3 Excel»."
+      : success
+        ? success + (success === 1 ? " archivo preparado." : " archivos preparados.")
+        : "";
+    showNotice([summary, ...notes].filter(Boolean).join("\n"), failed > 0);
+  } finally {
+    reading = false;
+    render();
+  }
 }
 
 function render() {
   const count = TYPES.filter(type => loaded[type]).length;
   $("#readyCount").innerHTML = count + ' <small>/ 3</small>';
   $("#fileProgress").textContent = count + " de 3 listos";
-  $("#downloadAll").disabled = count !== 3 || !window.XLSX || !window.JSZip;
+  $("#downloadAll").disabled = reading || count !== 3 || !window.XLSX || !window.JSZip;
   for (const type of TYPES) {
     const item = loaded[type];
     const card = document.querySelector('[data-role="' + type + '"]');
@@ -174,7 +209,7 @@ function render() {
     card.querySelector("[data-details]").textContent = item
       ? item.name + " · " + item.dataCount + " registros · " + item.width + " columnas"
       : "Ningún archivo cargado.";
-    card.querySelector("[data-download]").disabled = !item || !window.XLSX;
+    card.querySelector("[data-download]").disabled = reading || !item || !window.XLSX;
   }
   renderPreviews();
 }
@@ -222,10 +257,13 @@ function renderPreviews() {
   }
 }
 
-function cleanedName(name) {
-  return name.replace(/\.(xlsx|xls)$/i, "")
-    .replace(/[\\/:*?"<>|\u0000-\u001F]/g, "-")
-    .trim().slice(0, 110) + "_SIN_FORMATO.xlsx";
+function cleanedName(item) {
+  const names = {
+    base: "Redes_base_SIN_FORMATO.xlsx",
+    unidades: "PEA_unidades_SIN_FORMATO.xlsx",
+    actividades: "PEA_actividades_SIN_FORMATO.xlsx"
+  };
+  return names[item.type];
 }
 
 function outputBytes(item) {
@@ -251,9 +289,8 @@ function downloadOne(type) {
   const item = loaded[type];
   if (!item) return;
   try {
-    const bytes = outputBytes(item);
-    downloadBlob(new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), cleanedName(item.name));
-    showNotice("Se descargó " + cleanedName(item.name) + ". Las celdas están sin estilos.", false);
+    downloadBlob(new Blob([item.bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), cleanedName(item));
+    showNotice("Descargado: " + cleanedName(item) + ". Sin estilos y conservando sus datos.", false);
   } catch (e) {
     showNotice("No se pudo generar el archivo: " + (e.message || e), true);
   }
@@ -276,11 +313,12 @@ async function downloadAll() {
     const zip = new JSZip();
     for (const type of TYPES) {
       const item = loaded[type];
-      zip.file(cleanedName(item.name), outputBytes(item));
+      zip.file(cleanedName(item), item.bytes);
     }
-    const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } });
+    // Los XLSX ya son ZIP comprimidos: volver a comprimirlos solo consume tiempo.
+    const blob = await zip.generateAsync({ type: "blob", compression: "STORE" });
     downloadBlob(blob, "Matriz_CCC_3_Excel_sin_formato.zip");
-    showNotice("Paquete generado correctamente: 3 archivos Excel independientes, sin estilos. Las correcciones de encabezados se aplicaron cuando eran necesarias.");
+    showNotice("Descarga preparada: ZIP con Redes base, PEA unidades y PEA actividades, sin formato. Los documentos originales no se modificaron.");
   } catch (e) {
     showNotice("No se pudo generar el ZIP: " + (e.message || e), true);
   } finally {
